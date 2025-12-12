@@ -200,10 +200,11 @@ app.post("/api/messages", (req, res) => {
     });
   }
 
-  // Token-Kosten pro Client-Nachricht
+  // Token-Kosten / Vergütung pro Client-Nachricht
   const MESSAGE_COST = 1;
 
   if (senderRole === "client") {
+    // Tokens beim Client abziehen
     if (typeof fromUser.tokens !== "number") fromUser.tokens = 0;
     if (fromUser.tokens < MESSAGE_COST) {
       return res.status(400).json({
@@ -212,7 +213,15 @@ app.post("/api/messages", (req, res) => {
       });
     }
     fromUser.tokens -= MESSAGE_COST;
+
+    // Tokens beim Model gutschreiben (falls Empfänger wirklich ein Model ist)
+    if (toUser.role === "model") {
+      if (typeof toUser.tokens !== "number") toUser.tokens = 0;
+      toUser.tokens += MESSAGE_COST;
+    }
   }
+
+  // (Model-sendende Nachricht kostet erstmal keine Tokens)
 
   const newMessage = {
     id: nextMessageId++,
@@ -229,7 +238,13 @@ app.post("/api/messages", (req, res) => {
   res.json({
     ok: true,
     message: newMessage,
+    // verbleibende Tokens für Client, falls der gesendet hat
     remainingTokens: senderRole === "client" ? fromUser.tokens : undefined,
+    // Tokens vom Model, falls Client -> Model
+    modelTokens:
+      senderRole === "client" && toUser.role === "model"
+        ? toUser.tokens
+        : undefined,
   });
 });
 
